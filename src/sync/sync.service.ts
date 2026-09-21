@@ -11,24 +11,40 @@ export class SyncService {
 
   async pull(userId: number, since: string | undefined, limit: number) {
     const cursor = decodeCheckpoint(since)
-    // El cursor avanza por updatedAt.
-    const where = cursor ? { updatedAt: { gt: new Date(cursor.updatedAt) } } : {}
-    const order = { updatedAt: 'asc' as const }
+    // El cursor avanza por updatedAt e id para desempate estable.
+    const cursorWhere = cursor
+      ? {
+          OR: [
+            { updatedAt: { gt: new Date(cursor.updatedAt) } },
+            { updatedAt: new Date(cursor.updatedAt), id: { gt: cursor.id } },
+          ],
+        }
+      : {}
+    const order = [{ updatedAt: 'asc' as const }, { id: 'asc' as const }]
     const scope = { placement: { OR: [{ studentId: userId }, { tutorId: userId }] } }
 
     const [placements, hourLogs, documents, evaluations] = await Promise.all([
       this.prisma.placement.findMany({
-        where: { ...where, OR: [{ studentId: userId }, { tutorId: userId }] },
+        where: {
+          AND: [
+            cursorWhere,
+            { OR: [{ studentId: userId }, { tutorId: userId }] }
+          ]
+        },
         orderBy: order,
         take: limit,
       }),
-      this.prisma.hourLog.findMany({ where: { ...where, ...scope }, orderBy: order, take: limit }),
-      this.prisma.document.findMany({ where: { ...where, ...scope }, orderBy: order, take: limit }),
-      this.prisma.evaluation.findMany({ where: { ...where, ...scope }, orderBy: order, take: limit }),
+      this.prisma.hourLog.findMany({ where: { ...cursorWhere, ...scope }, orderBy: order, take: limit }),
+      this.prisma.document.findMany({ where: { ...cursorWhere, ...scope }, orderBy: order, take: limit }),
+      this.prisma.evaluation.findMany({ where: { ...cursorWhere, ...scope }, orderBy: order, take: limit }),
     ])
 
     const newest = [...placements, ...hourLogs, ...documents, ...evaluations]
-      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())[0]
+      .sort((a, b) => {
+        const timeDiff = new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        if (timeDiff !== 0) return timeDiff
+        return b.id - a.id
+      })[0]
 
     const checkpoint: Checkpoint | null = newest
       ? { updatedAt: new Date(newest.updatedAt).toISOString(), id: newest.id }

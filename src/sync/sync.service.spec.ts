@@ -20,15 +20,19 @@ describe('SyncService', () => {
     service = new SyncService(prisma as never)
   })
 
-  it('returns changes and a checkpoint from the newest row', async () => {
+  it('returns changes and a checkpoint from the newest row, breaking ties by id', async () => {
     prisma.hourLog.findMany.mockResolvedValue([
       { id: 9, updatedAt: new Date('2026-04-01T12:00:00.000Z'), placementId: 1 },
+      { id: 11, updatedAt: new Date('2026-04-01T12:00:00.000Z'), placementId: 1 },
+      { id: 10, updatedAt: new Date('2026-04-01T12:00:00.000Z'), placementId: 1 },
     ])
 
     const result = await service.pull(5, undefined, 200)
 
-    expect(result.changes.hourLogs).toHaveLength(1)
-    expect(result.checkpoint).toBeTypeOf('string')
+    expect(result.changes.hourLogs).toHaveLength(3)
+    const decoded = JSON.parse(Buffer.from(result.checkpoint!, 'base64').toString('utf8'))
+    expect(decoded.id).toBe(11) // El ID más alto con el mismo updatedAt
+    expect(decoded.updatedAt).toBe('2026-04-01T12:00:00.000Z')
     expect(result.hasMore).toBe(false)
   })
 
