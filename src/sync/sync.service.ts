@@ -5,6 +5,8 @@ import type { SyncOperationInput, SyncOperationResult } from './dto/push.dto'
 
 @Injectable()
 export class SyncService {
+  private processingOps = new Map<string, Promise<SyncOperationResult>>()
+
   constructor(private readonly prisma: PrismaService) { }
 
   async pull(userId: number, since: string | undefined, limit: number) {
@@ -42,28 +44,53 @@ export class SyncService {
   async push(userId: number, ops: SyncOperationInput[]) {
     const results: SyncOperationResult[] = []
     for (const op of ops) {
-      let result: SyncOperationResult
-      try {
-        // D-01: sync_operations se escribe pero NUNCA se consulta antes de
-        // aplicar. Un reintento con el mismo clientOpId aplica dos veces.
-        result = await this.applyOperation(userId, op)
-      } catch (err) {
-        result = {
-          clientOpId: op.clientOpId,
-          status: 'rejected',
-          server: null,
-          reason: err instanceof Error ? err.message : 'no se pudo aplicar la operación',
-        }
+      let promise = this.processingOps.get(op.clientOpId)
+      if (!promise) {
+        promise = (async () => {
+          // Consultar si ya fue procesada anteriormente
+          const existing = await this.prisma.syncOperation.findUnique({
+            where: { clientOpId: op.clientOpId },
+          })
+          if (existing) {
+            return existing.response as unknown as SyncOperationResult
+          }
+
+          let result: SyncOperationResult
+          try {
+            result = await this.applyOperation(userId, op)
+          } catch (err) {
+            result = {
+              clientOpId: op.clientOpId,
+              status: 'rejected',
+              server: null,
+              reason: err instanceof Error ? err.message : 'no se pudo aplicar la operación',
+            }
+          }
+
+          try {
+            await this.prisma.syncOperation.create({
+              data: { clientOpId: op.clientOpId, userId, response: result as unknown as object },
+            })
+          } catch {
+            // Si ocurre un error de restricción única aquí, significa que
+            // otra instancia o solicitud concurrente ganó la carrera y la guardó.
+            const concurrentExisting = await this.prisma.syncOperation.findUnique({
+              where: { clientOpId: op.clientOpId },
+            })
+            if (concurrentExisting) {
+              return concurrentExisting.response as unknown as SyncOperationResult
+            }
+          }
+
+          return result
+        })()
+        this.processingOps.set(op.clientOpId, promise)
       }
-      try {
-        await this.prisma.syncOperation.create({
-          data: { clientOpId: op.clientOpId, userId, response: result as unknown as object },
-        })
-      } catch {
-        // clientOpId es la clave primaria: un reintento choca con el
-        // registro previo. El log de sync_operations se ignora, pero la
-        // operación de negocio ya se aplicó arriba — eso es D-01.
-      }
+
+      const result = await promise
+      // Limpiar para evitar memory leaks
+      this.processingOps.delete(op.clientOpId)
+
       results.push(result)
     }
     return { results }
@@ -101,14 +128,16 @@ export class SyncService {
     if (!existing || existing.placement.studentId !== userId) {
       return { clientOpId: op.clientOpId, status: 'rejected', server: null, reason: 'el registro no pertenece al usuario' }
     }
+
     if (existing.status === 'APPROVED' || existing.status === 'REJECTED') {
-      return { 
-        clientOpId: op.clientOpId, 
-        status: 'rejected', 
-        server: existing as never, // Devuelves el estado real para que el cliente actualice su UI
-        reason: `Tus cambios no se guardaron porque el tutor ya ${existing.status === 'APPROVED' ? 'aprobó' : 'rechazó'} este registro.` 
+      return {
+        clientOpId: op.clientOpId,
+        status: 'rejected',
+        server: existing as never,
+        reason: `Tus cambios no se guardaron porque el tutor ya ${existing.status === 'APPROVED' ? 'aprobó' : 'rechazó'} este registro.`
       }
     }
+
     if (op.baseVersion != null && existing.version > op.baseVersion) {
       return {
         clientOpId: op.clientOpId,
@@ -117,9 +146,8 @@ export class SyncService {
         reason: 'Hay una versión más reciente en el servidor. Tus cambios entraron en conflicto.'
       }
     }
-    
+
     if (op.op === 'update') {
-      // La actualización aplica los campos recibidos y avanza version.
       const updated = await this.prisma.hourLog.update({
         where: { id: Number(op.payload.id) },
         data: {
