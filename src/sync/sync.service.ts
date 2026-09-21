@@ -7,7 +7,7 @@ import type { SyncOperationInput, SyncOperationResult } from './dto/push.dto'
 export class SyncService {
   private processingOps = new Map<string, Promise<SyncOperationResult>>()
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async pull(userId: number, since: string | undefined, limit: number) {
     const cursor = decodeCheckpoint(since)
@@ -90,7 +90,7 @@ export class SyncService {
       const result = await promise
       // Limpiar para evitar memory leaks
       this.processingOps.delete(op.clientOpId)
-      
+
       results.push(result)
     }
     return { results }
@@ -129,8 +129,25 @@ export class SyncService {
       return { clientOpId: op.clientOpId, status: 'rejected', server: null, reason: 'el registro no pertenece al usuario' }
     }
 
+    if (existing.status === 'APPROVED' || existing.status === 'REJECTED') {
+      return {
+        clientOpId: op.clientOpId,
+        status: 'rejected',
+        server: existing as never,
+        reason: `Tus cambios no se guardaron porque el tutor ya ${existing.status === 'APPROVED' ? 'aprobó' : 'rechazó'} este registro.`
+      }
+    }
+
+    if (op.baseVersion != null && existing.version > op.baseVersion) {
+      return {
+        clientOpId: op.clientOpId,
+        status: 'conflict',
+        server: existing as never,
+        reason: 'Hay una versión más reciente en el servidor. Tus cambios entraron en conflicto.'
+      }
+    }
+
     if (op.op === 'update') {
-      // La actualización aplica los campos recibidos y avanza version.
       const updated = await this.prisma.hourLog.update({
         where: { id: Number(op.payload.id) },
         data: {
