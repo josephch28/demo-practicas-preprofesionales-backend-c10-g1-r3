@@ -1,10 +1,14 @@
 export interface Checkpoint {
-  updatedAt: string
+  updatedAt: string | Date
   id: number
 }
 
 export function encodeCheckpoint(cp: Checkpoint): string {
-  return Buffer.from(JSON.stringify(cp), 'utf8').toString('base64')
+  const normalized = {
+    ...cp,
+    updatedAt: cp.updatedAt instanceof Date ? cp.updatedAt.toISOString() : cp.updatedAt,
+  }
+  return Buffer.from(JSON.stringify(normalized), 'utf8').toString('base64')
 }
 
 export function decodeCheckpoint(raw: string | undefined): Checkpoint | null {
