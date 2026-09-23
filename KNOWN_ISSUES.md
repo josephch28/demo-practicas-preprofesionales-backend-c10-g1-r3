@@ -5,17 +5,6 @@ dolió, no por severidad técnica.
 
 Si encuentras algo que no está acá, agrégalo. Casi seguro hay más.
 
-## D-01 · El sync duplica horas al reintentar
-
-`src/offline/sync/push.ts` (front) y `src/sync/sync.service.ts` (back).
-
-Si el push se corta a medias y el cliente reintenta, a veces aparecen dos registros de horas
-idénticos. Pasa más en la práctica de campo, con señal intermitente. Mandamos un `clientOpId`
-en cada operación y guardamos las operaciones en `sync_operations`, pero evidentemente algo
-no está cerrando el círculo. No tuvimos tiempo de sentarnos a entenderlo.
-
-Workaround actual: el coordinador borra los duplicados a mano.
-
 ## D-02 · `HourLogService` se nos fue de las manos
 
 `src/hour-log/hour-log.service.ts`
