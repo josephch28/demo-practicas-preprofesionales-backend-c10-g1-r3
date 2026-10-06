@@ -2,9 +2,11 @@ import 'dotenv/config'
 import { ValidationPipe } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app.module'
+import { getJwtSecret } from './auth/jwt-secret'
 import { HttpExceptionFilter } from './common/http-exception.filter'
 
 async function bootstrap(): Promise<void> {
+  getJwtSecret()
   const app = await NestFactory.create(AppModule)
   app.setGlobalPrefix('api')
   app.enableCors({
@@ -17,3 +19,4 @@ async function bootstrap(): Promise<void> {
 }
 
 void bootstrap()
+
