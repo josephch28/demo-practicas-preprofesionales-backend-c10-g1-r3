@@ -80,8 +80,8 @@ describe('ApplicationService', () => {
       return { id, ...data }
     })
     const results = await Promise.all([
-      service.decide(1, 'ACCEPTED' as never),
-      service.decide(2, 'ACCEPTED' as never),
+      service.decide(1, 'ACCEPTED' as never, 1, 'COORDINATOR' as never),
+      service.decide(2, 'ACCEPTED' as never, 1, 'COORDINATOR' as never),
     ])
 
     expect(results[0].status).toBe('ACCEPTED')
