@@ -59,6 +59,37 @@ describe('ApplicationService', () => {
     expect(prisma.user.findUnique).not.toHaveBeenCalled()
   })
 
+  it('demuestra el sobrecupo con dos aceptaciones simultáneas (condición de carrera)', async () => {
+
+    prisma.offer.findUnique.mockResolvedValue({ id: 1, seats: 1, status: 'PUBLISHED' })
+
+    prisma.application.findUnique.mockImplementation(async ({ where: { id } }) => {
+      return { id, offerId: 1, status: 'SUBMITTED' }
+    })
+
+    let dbAcceptedCount = 0
+
+    offers.acceptedCount.mockImplementation(async () => {
+      const currentCount = dbAcceptedCount
+      await new Promise(resolve => setTimeout(resolve, 20))
+      return currentCount
+    })
+
+    prisma.application.update.mockImplementation(async ({ where: { id }, data }) => {
+      dbAcceptedCount++
+      return { id, ...data }
+    })
+    const results = await Promise.all([
+      service.decide(1, 'ACCEPTED' as never, 1, 'COORDINATOR' as never),
+      service.decide(2, 'ACCEPTED' as never, 1, 'COORDINATOR' as never),
+    ])
+
+    expect(results[0].status).toBe('ACCEPTED')
+    expect(results[1].status).toBe('ACCEPTED')
+
+    expect(dbAcceptedCount).toBe(2)
+  })
+
   it('lists applications of an offer with their student', async () => {
     prisma.offer.findUnique.mockResolvedValue({ id: 1, companyId: 99 })
     prisma.application.findMany.mockResolvedValue([
