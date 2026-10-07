@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException } from '@nestjs/common'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HourLogService } from './hour-log.service'
 
@@ -39,13 +39,34 @@ describe('HourLogService', () => {
     ).rejects.toThrow(BadRequestException)
   })
 
-  it('approves a submitted hour log', async () => {
-    prisma.hourLog.findUnique.mockResolvedValue({ id: 99, placementId: 1, status: 'SUBMITTED', version: 1 })
+    it('approves a submitted hour log when the reviewer is the assigned tutor', async () => {
+    prisma.hourLog.findUnique.mockResolvedValue({
+      id: 99,
+      placementId: 1,
+      status: 'SUBMITTED',
+      version: 1,
+      placement: { id: 1, tutorId: 7 },
+    })
     prisma.hourLog.update.mockImplementation(({ data }) => Promise.resolve({ id: 99, ...data }))
 
     const result = await service.review(99, 'APPROVED' as never, 7, 'ok')
 
     expect(result.status).toBe('APPROVED')
     expect(result.reviewedById).toBe(7)
+  })
+
+  // E3-02 / H-03: un tutor que no es el asignado a la práctica no puede
+  // aprobar ni rechazar sus horas.
+  it('rejects review from a tutor who is not assigned to the placement', async () => {
+    prisma.hourLog.findUnique.mockResolvedValue({
+      id: 99,
+      placementId: 1,
+      status: 'SUBMITTED',
+      version: 1,
+      placement: { id: 1, tutorId: 7 },
+    })
+
+    await expect(service.review(99, 'APPROVED' as never, 999, 'ok')).rejects.toThrow(ForbiddenException)
+    expect(prisma.hourLog.update).not.toHaveBeenCalled()
   })
 })
