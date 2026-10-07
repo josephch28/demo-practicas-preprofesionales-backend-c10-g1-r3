@@ -86,15 +86,20 @@ export class HourLogService {
     })
   }
 
-  /**
+    /**
    * Aprueba o rechaza un registro de horas.
    *
-   * Valida la máquina de estados: solo se revisan registros que están en
+   * Valida pertenencia: solo el tutor asignado a la práctica del registro
+   * puede revisarlo (E3-02 / H-03 del inventario de permisos). Después
+   * valida la máquina de estados: solo se revisan registros que están en
    * `SUBMITTED`; de ahí pasan a `APPROVED` o `REJECTED`.
    */
   async review(id: number, status: HourLogStatus, reviewerId: number, note?: string) {
-    const log = await this.prisma.hourLog.findUnique({ where: { id } })
+    const log = await this.prisma.hourLog.findUnique({ where: { id }, include: { placement: true } })
     if (!log) throw new NotFoundException('registro de horas no encontrado')
+    if (log.placement.tutorId !== reviewerId) {
+      throw new ForbiddenException('no eres el tutor asignado a esta práctica')
+    }
     if (log.status !== HourLogStatus.SUBMITTED) {
       throw new BadRequestException('solo se revisan registros en SUBMITTED')
     }
