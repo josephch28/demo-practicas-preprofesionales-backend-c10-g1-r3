@@ -25,9 +25,28 @@ export class OfferService {
     })
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, userId?: number, role?: Role) {
     const offer = await this.prisma.offer.findUnique({ where: { id }, include: { company: true } })
     if (!offer) throw new NotFoundException('oferta no encontrada')
+
+    // H-04: Las ofertas no publicadas (DRAFT, etc.) solo son visibles para
+    // la coordinación y para la empresa propietaria de la oferta.
+    // Un estudiante u otro usuario ajeno recibe 404 como si no existiera.
+    if (offer.status !== OfferStatus.PUBLISHED) {
+      if (role === Role.COORDINATOR) {
+        return offer
+      }
+
+      if (role === Role.COMPANY && userId) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { companyId: true } })
+        if (user?.companyId === offer.companyId) {
+          return offer
+        }
+      }
+
+      throw new NotFoundException('oferta no encontrada')
+    }
+
     return offer
   }
 

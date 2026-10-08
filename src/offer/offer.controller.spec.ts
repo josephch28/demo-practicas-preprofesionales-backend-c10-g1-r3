@@ -31,9 +31,9 @@ describe('OfferController', () => {
     expect(service.findAllForCompanyUser).toHaveBeenCalledWith(10)
   })
 
-  it('delegates findOne to service with id', () => {
-    controller.findOne(1)
-    expect(service.findOne).toHaveBeenCalledWith(1)
+  it('delegates findOne to service with id, user sub and role', () => {
+    controller.findOne(1, { user: { sub: 22, role: Role.STUDENT } })
+    expect(service.findOne).toHaveBeenCalledWith(1, 22, Role.STUDENT)
   })
 
   it('delegates create to service with dto and auth user', () => {

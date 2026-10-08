@@ -171,7 +171,7 @@ describe('OfferService', () => {
     })
 
     it('finds one offer by id', async () => {
-      const mockOffer = { id: 1, title: 'Oferta 1' }
+      const mockOffer = { id: 1, title: 'Oferta 1', status: 'PUBLISHED' }
       prisma.offer.findUnique.mockResolvedValue(mockOffer)
 
       const result = await service.findOne(1)
@@ -217,6 +217,56 @@ describe('OfferService', () => {
       prisma.user.findUnique.mockResolvedValue({ companyId: null })
 
       await expect(service.findAllForCompanyUser(42)).rejects.toThrow('el usuario no tiene una empresa asociada')
+    })
+  })
+
+  describe('findOne (H-04)', () => {
+    it('returns a PUBLISHED offer to a student with normal visibility', async () => {
+      const offer = { id: 1, title: 'Oferta Publicada', status: 'PUBLISHED', companyId: 10 }
+      prisma.offer.findUnique.mockResolvedValue(offer)
+
+      const result = await service.findOne(1, 22, Role.STUDENT)
+
+      expect(result).toEqual(offer)
+      expect(prisma.offer.findUnique).toHaveBeenCalledWith({ where: { id: 1 }, include: { company: true } })
+    })
+
+    it('rejects with NotFoundException when a student requests an offer in DRAFT (H-04)', async () => {
+      prisma.offer.findUnique.mockResolvedValue({ id: 37, title: 'Oferta Borrador', status: 'DRAFT', companyId: 10 })
+
+      await expect(service.findOne(37, 22, Role.STUDENT)).rejects.toThrow(NotFoundException)
+    })
+
+    it('allows coordinator to read an offer in DRAFT', async () => {
+      const draftOffer = { id: 37, title: 'Oferta Borrador', status: 'DRAFT', companyId: 10 }
+      prisma.offer.findUnique.mockResolvedValue(draftOffer)
+
+      const result = await service.findOne(37, 1, Role.COORDINATOR)
+
+      expect(result).toEqual(draftOffer)
+    })
+
+    it('allows the owner company to read its own offer in DRAFT', async () => {
+      const draftOffer = { id: 37, title: 'Oferta Borrador', status: 'DRAFT', companyId: 10 }
+      prisma.offer.findUnique.mockResolvedValue(draftOffer)
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 5, companyId: 10 })
+
+      const result = await service.findOne(37, 5, Role.COMPANY)
+
+      expect(result).toEqual(draftOffer)
+    })
+
+    it('rejects with NotFoundException when another company requests an offer in DRAFT', async () => {
+      prisma.offer.findUnique.mockResolvedValue({ id: 37, title: 'Oferta Borrador', status: 'DRAFT', companyId: 10 })
+      prisma.user.findUnique.mockResolvedValueOnce({ id: 6, companyId: 99 })
+
+      await expect(service.findOne(37, 6, Role.COMPANY)).rejects.toThrow(NotFoundException)
+    })
+
+    it('throws NotFoundException if the offer does not exist', async () => {
+      prisma.offer.findUnique.mockResolvedValue(null)
+
+      await expect(service.findOne(999, 1, Role.COORDINATOR)).rejects.toThrow(NotFoundException)
     })
   })
 })
