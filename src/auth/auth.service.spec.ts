@@ -25,6 +25,8 @@ describe('AuthService.login', () => {
     const result = await service.login('tutor0@miyura.com', 'yura1234')
 
     expect(result.accessToken).toBe('token-firmado')
+    expect(result.refreshToken).toBeDefined()
+    expect(typeof result.refreshToken).toBe('string')
     expect(result.user).toEqual({ id: 1, email: 'tutor0@miyura.com', fullName: 'Tutor Académico 0', role: 'TUTOR' })
   })
 
@@ -39,6 +41,7 @@ describe('AuthService.login', () => {
     expect(result.user).toEqual({
       id: 2, email: 'empresa0@miyura.com', fullName: 'Empresa 0', role: 'COMPANY', companyId: 1,
     })
+    expect(result.refreshToken).toBeDefined()
   })
 
   it('throws Unauthorized when the password does not match', async () => {
@@ -48,5 +51,43 @@ describe('AuthService.login', () => {
     })
 
     await expect(service.login('tutor0@miyura.com', 'yura1234')).rejects.toThrow(UnauthorizedException)
+  })
+})
+
+describe('AuthService.refresh', () => {
+  let service: AuthService
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    service = new AuthService(prisma as never, jwt as never)
+  })
+
+  it('renews access token and issues a new refresh token, invalidating the previous one', async () => {
+    const user = {
+      id: 1,
+      email: 'estudiante0@miyura.com',
+      password: await bcrypt.hash('yura1234', 10),
+      fullName: 'Estudiante 0',
+      role: 'STUDENT',
+      companyId: null,
+    }
+    prisma.user.findUnique.mockResolvedValue(user)
+
+    const loginRes = await service.login('estudiante0@miyura.com', 'yura1234')
+    const initialRefreshToken = loginRes.refreshToken
+
+    // Renovación exitosa
+    const refreshRes = await service.refresh(initialRefreshToken)
+    expect(refreshRes.accessToken).toBe('token-firmado')
+    expect(refreshRes.refreshToken).toBeDefined()
+    expect(refreshRes.refreshToken).not.toBe(initialRefreshToken)
+    expect(refreshRes.user.email).toBe('estudiante0@miyura.com')
+
+    // El token anterior fue invalidado y ya no puede usarse
+    await expect(service.refresh(initialRefreshToken)).rejects.toThrow(UnauthorizedException)
+  })
+
+  it('throws UnauthorizedException when using an invalid or non-existent refresh token', async () => {
+    await expect(service.refresh('token-inexistente')).rejects.toThrow(UnauthorizedException)
   })
 })

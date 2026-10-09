@@ -5,3 +5,12 @@ export function getJwtSecret(): string {
   }
   return secret
 }
+
+export function getJwtExpiresIn(): string {
+  const expiresIn = process.env.JWT_EXPIRES_IN
+  if (expiresIn && expiresIn.trim() !== '') {
+    return expiresIn.trim()
+  }
+  return '15m'
+}
+

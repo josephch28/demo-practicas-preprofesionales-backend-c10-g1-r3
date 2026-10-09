@@ -4,7 +4,7 @@ import { AuthController } from './auth.controller'
 import { AuthService } from './auth.service'
 import { JwtAuthGuard } from './guards/jwt-auth.guard'
 import { RolesGuard } from './guards/roles.guard'
-import { getJwtSecret } from './jwt-secret'
+import { getJwtExpiresIn, getJwtSecret } from './jwt-secret'
 
 @Module({
   imports: [
@@ -12,6 +12,9 @@ import { getJwtSecret } from './jwt-secret'
       global: true,
       useFactory: () => ({
         secret: getJwtSecret(),
+        signOptions: {
+          expiresIn: getJwtExpiresIn() as never,
+        },
       }),
     }),
   ],
