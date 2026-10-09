@@ -31,9 +31,25 @@ máquina, cambia `POSTGRES_PORT` y `DATABASE_URL` en `.env` antes de `docker com
 | Variable | Valor por defecto | Descripción |
 |---|---|---|
 | `DATABASE_URL` | (requerido) | Cadena de conexión PostgreSQL |
-| `JWT_SECRET` | (requerido) | Secreto para firmar JWTs |
+| `JWT_SECRET` | (requerido) | Secreto para firmar JWTs (obligatorio, la app no arranca sin él) |
 | `PORT` | `3000` | Puerto donde escucha la API |
 | `CORS_ORIGIN` | `http://localhost:5173` | Origen permitido para requests desde el navegador (frontend Vite) |
+
+### Generación de un secreto JWT adecuado
+
+Para entornos de desarrollo y producción, genera una clave criptográficamente segura (por ejemplo, de al menos 32 bytes en Base64 o Hex):
+
+```bash
+# Con OpenSSL
+openssl rand -base64 32
+
+# O con Node.js
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Configura el valor resultante en la variable `JWT_SECRET` de tu archivo `.env`.
+
+
 
 Usuarios del seed (contraseña `yura1234` para todos):
 

@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { ApplicationStatus, OfferStatus } from '@prisma/client'
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { ApplicationStatus, OfferStatus, Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type { CreateOfferDto } from './dto/create-offer.dto'
 
@@ -7,7 +7,13 @@ import type { CreateOfferDto } from './dto/create-offer.dto'
 export class OfferService {
   constructor(private readonly prisma: PrismaService) {}
 
-  create(dto: CreateOfferDto) {
+  async create(dto: CreateOfferDto, userId: number, role: Role) {
+    if (role !== Role.COORDINATOR) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { companyId: true } })
+      if (!user?.companyId || user.companyId !== dto.companyId) {
+        throw new ForbiddenException('no tienes permiso para crear ofertas para otra empresa')
+      }
+    }
     return this.prisma.offer.create({ data: { ...dto, status: OfferStatus.DRAFT } })
   }
 
@@ -19,9 +25,28 @@ export class OfferService {
     })
   }
 
-  async findOne(id: number) {
+  async findOne(id: number, userId?: number, role?: Role) {
     const offer = await this.prisma.offer.findUnique({ where: { id }, include: { company: true } })
     if (!offer) throw new NotFoundException('oferta no encontrada')
+
+    // H-04: Las ofertas no publicadas (DRAFT, etc.) solo son visibles para
+    // la coordinación y para la empresa propietaria de la oferta.
+    // Un estudiante u otro usuario ajeno recibe 404 como si no existiera.
+    if (offer.status !== OfferStatus.PUBLISHED) {
+      if (role === Role.COORDINATOR) {
+        return offer
+      }
+
+      if (role === Role.COMPANY && userId) {
+        const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { companyId: true } })
+        if (user?.companyId === offer.companyId) {
+          return offer
+        }
+      }
+
+      throw new NotFoundException('oferta no encontrada')
+    }
+
     return offer
   }
 
@@ -39,9 +64,21 @@ export class OfferService {
     })
   }
 
-  async publish(id: number) {
+  private async assertOfferOwnership(offerCompanyId: number, userId: number, role: Role) {
+    if (role === Role.COORDINATOR) return
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { companyId: true } })
+    if (!user?.companyId || offerCompanyId !== user.companyId) {
+      throw new ForbiddenException('la oferta no pertenece a tu empresa')
+    }
+  }
+
+  async publish(id: number, userId: number, role: Role) {
     const offer = await this.prisma.offer.findUnique({ where: { id } })
     if (!offer) throw new NotFoundException('oferta no encontrada')
+
+    await this.assertOfferOwnership(offer.companyId, userId, role)
+
     if (offer.status !== OfferStatus.DRAFT) {
       throw new BadRequestException('solo se publican ofertas en DRAFT')
     }
@@ -51,9 +88,12 @@ export class OfferService {
     })
   }
 
-  async close(id: number) {
+  async close(id: number, userId: number, role: Role) {
     const offer = await this.prisma.offer.findUnique({ where: { id } })
     if (!offer) throw new NotFoundException('oferta no encontrada')
+
+    await this.assertOfferOwnership(offer.companyId, userId, role)
+
     if (offer.status !== OfferStatus.PUBLISHED) {
       throw new BadRequestException('solo se cierran ofertas publicadas')
     }
