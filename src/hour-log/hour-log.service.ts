@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { HourLogStatus, PlacementStatus, Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type { CreateHourLogDto } from './dto/create-hour-log.dto'
+import { validateHoursValue } from './hour-log-rules'
 
 // D-02 (deuda sembrada, documentada a propósito): este servicio es un
 // "god service". `create` valida el DTO, persiste el registro y dispara
@@ -35,10 +36,10 @@ export class HourLogService {
       throw new BadRequestException('el placement no está activo')
     }
 
-    // D-06 (copia 2): la misma validación que el DTO, con tope 10 en vez de 12.
-    if (dto.hours <= 0 || dto.hours > 10) {
-      throw new BadRequestException('las horas deben estar entre 0 y 10')
-    }
+    // E6-01: regla única — ver src/hour-log/hour-log-rules.ts
+    const hoursError = validateHoursValue(dto.hours)
+    if (hoursError) throw new BadRequestException(hoursError)
+
     const [startHour, startMinute] = dto.startTime.split(':').map(Number)
     const [endHour, endMinute] = dto.endTime.split(':').map(Number)
     if (startHour * 60 + startMinute >= endHour * 60 + endMinute) {
@@ -269,12 +270,10 @@ export class HourLogService {
     const rows: (string | number)[][] = [header]
 
     for (const dto of logs) {
-      // D-06 (copia 3): la misma validación que en `create`, pegada de
-      // nuevo en vez de compartida — otra copia más de la divergencia de
-      // umbrales entre el DTO (tope 12) y el servicio (tope 10).
-      if (dto.hours <= 0 || dto.hours > 10) {
-        throw new BadRequestException('las horas deben estar entre 0 y 10')
-      }
+      // E6-01: misma regla que en create(). Centralizada en hour-log-rules.ts
+      const hoursError = validateHoursValue(dto.hours)
+      if (hoursError) throw new BadRequestException(hoursError)
+
       const [startHour, startMinute] = dto.startTime.split(':').map(Number)
       const [endHour, endMinute] = dto.endTime.split(':').map(Number)
       if (startHour * 60 + startMinute >= endHour * 60 + endMinute) {
