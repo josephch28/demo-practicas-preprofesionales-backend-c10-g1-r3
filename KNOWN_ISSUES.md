@@ -37,12 +37,3 @@ acreditación adentro. Funciona — hasta donde sabemos — pero solo hay dos te
 cualquier cambio es a ciegas. Si te toca modificar reglas de acreditación, escribe primero
 tests de los casos que hoy funcionan.
 
-## D-06 · La validación de horas está en tres lados
-
-`src/hour-log/dto/create-hour-log.dto.ts`, `src/hour-log/hour-log.service.ts` y el formulario
-del frontend.
-
-Y ya divergieron: el DTO acepta hasta 12 horas por registro y el servicio corta en 10. El
-formulario tiene su propia versión. Nadie recuerda cuál es la correcta.
-
-
