@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { HourLogStatus, PlacementStatus, Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type { CreateHourLogDto } from './dto/create-hour-log.dto'
+import { formatCalendarDay, institutionToday, toInstitutionCalendarDay, truncateToUtcDay } from './timezone'
 import { validateHoursValue } from './hour-log-rules'
 
 // D-02 (deuda sembrada, documentada a propósito): este servicio es un
@@ -46,11 +47,24 @@ export class HourLogService {
       throw new BadRequestException('la hora de inicio debe ser anterior a la de fin')
     }
 
-    // La fecha del registro llega desde el cliente y se persiste tal como fue recibida.
+    const normalizedDate = toInstitutionCalendarDay(dto.date)
+    const today = institutionToday()
+    if (normalizedDate > today) {
+      throw new BadRequestException('no se pueden registrar horas con fecha futura')
+    }
+
+    const placementStart = truncateToUtcDay(placement.startDate)
+    const placementEnd = truncateToUtcDay(placement.endDate)
+    if (normalizedDate < placementStart || normalizedDate > placementEnd) {
+      throw new BadRequestException(
+        `la fecha debe estar entre ${formatCalendarDay(placementStart)} y ${formatCalendarDay(placementEnd)}`,
+      )
+    }
+
     const created = await this.prisma.hourLog.create({
       data: {
         placementId: dto.placementId,
-        date: dto.date,
+        date: normalizedDate,
         startTime: dto.startTime,
         endTime: dto.endTime,
         hours: dto.hours,
