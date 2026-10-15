@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { ApplicationStatus, Role } from '@prisma/client'
+import { ApplicationStatus, Prisma, Role } from '@prisma/client'
 import { OfferService } from '../offer/offer.service'
 import { PrismaService } from '../prisma/prisma.service'
 
@@ -26,13 +26,14 @@ export class ApplicationService {
     })
   }
 
-  async assertOfferAccess(offerId: number, userId: number, role: Role) {
+  async assertOfferAccess(offerId: number, userId: number, role: Role, tx?: Prisma.TransactionClient) {
     if (role === Role.COORDINATOR) return
 
-    const offer = await this.prisma.offer.findUnique({ where: { id: offerId } })
+    const client = tx ?? this.prisma
+    const offer = await client.offer.findUnique({ where: { id: offerId } })
     if (!offer) throw new NotFoundException('oferta no encontrada')
 
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { companyId: true } })
+    const user = await client.user.findUnique({ where: { id: userId }, select: { companyId: true } })
     if (!user || offer.companyId !== user.companyId) {
       throw new ForbiddenException('no tienes acceso a las postulaciones de esta oferta')
     }
@@ -51,26 +52,35 @@ export class ApplicationService {
   }
 
   async decide(id: number, status: ApplicationStatus, userId: number, role: Role) {
-    const application = await this.prisma.application.findUnique({ where: { id } })
-    if (!application) throw new NotFoundException('postulación no encontrada')
-    
-    await this.assertOfferAccess(application.offerId, userId, role)
+    return this.prisma.$transaction(async (tx) => {
+      const application = await tx.application.findUnique({ where: { id } })
+      if (!application) throw new NotFoundException('postulación no encontrada')
 
-    if (application.status !== ApplicationStatus.SUBMITTED && application.status !== ApplicationStatus.INTERVIEW) {
-      throw new BadRequestException('la postulación ya fue decidida')
-    }
+      await this.assertOfferAccess(application.offerId, userId, role, tx)
 
-    if (status === ApplicationStatus.ACCEPTED) {
-      const offer = await this.prisma.offer.findUnique({ where: { id: application.offerId } })
-      if (!offer) throw new NotFoundException('oferta no encontrada')
-      // Verifica que la oferta todavía tenga cupos antes de aceptar la postulación.
-      const accepted = await this.offers.acceptedCount(application.offerId)
-      if (accepted >= offer.seats) throw new BadRequestException('la oferta ya no tiene cupos')
-    }
+      if (application.status !== ApplicationStatus.SUBMITTED && application.status !== ApplicationStatus.INTERVIEW) {
+        throw new BadRequestException('la postulación ya fue decidida')
+      }
 
-    return this.prisma.application.update({
-      where: { id },
-      data: { status, decidedAt: new Date() },
+      if (status === ApplicationStatus.ACCEPTED) {
+        // Bloqueo pesimista a nivel de fila sobre la oferta en PostgreSQL para
+        // serializar decisiones concurrentes y garantizar que no se sobrepasen los cupos.
+        if (typeof tx.$queryRaw === 'function') {
+          await tx.$queryRaw`SELECT id FROM offers WHERE id = ${application.offerId} FOR UPDATE`
+        }
+
+        const offer = await tx.offer.findUnique({ where: { id: application.offerId } })
+        if (!offer) throw new NotFoundException('oferta no encontrada')
+
+        // Verifica que la oferta todavía tenga cupos antes de aceptar la postulación.
+        const accepted = await this.offers.acceptedCount(application.offerId, tx)
+        if (accepted >= offer.seats) throw new BadRequestException('la oferta ya no tiene cupos')
+      }
+
+      return tx.application.update({
+        where: { id },
+        data: { status, decidedAt: new Date() },
+      })
     })
   }
 }
