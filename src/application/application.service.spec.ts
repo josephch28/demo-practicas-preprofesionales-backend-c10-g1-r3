@@ -6,6 +6,8 @@ const prisma = {
   application: { create: vi.fn(), findUnique: vi.fn(), update: vi.fn(), findMany: vi.fn() },
   offer: { findUnique: vi.fn() },
   user: { findUnique: vi.fn() },
+  $transaction: vi.fn(),
+  $queryRaw: vi.fn(),
 }
 const offers = { acceptedCount: vi.fn() }
 
@@ -14,6 +16,8 @@ describe('ApplicationService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) => callback(prisma))
+    prisma.$queryRaw.mockResolvedValue([])
     service = new ApplicationService(prisma as never, offers as never)
   })
 
@@ -59,8 +63,7 @@ describe('ApplicationService', () => {
     expect(prisma.user.findUnique).not.toHaveBeenCalled()
   })
 
-  it('demuestra el sobrecupo con dos aceptaciones simultáneas (condición de carrera)', async () => {
-
+  it('garantiza que nunca se acepten más postulaciones que cupos ante dos aceptaciones simultáneas', async () => {
     prisma.offer.findUnique.mockResolvedValue({ id: 1, seats: 1, status: 'PUBLISHED' })
 
     prisma.application.findUnique.mockImplementation(async ({ where: { id } }) => {
@@ -69,9 +72,21 @@ describe('ApplicationService', () => {
 
     let dbAcceptedCount = 0
 
+    // Simula la serialización transaccional/bloqueo de fila que garantiza la base de datos
+    let transactionQueue = Promise.resolve()
+    prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => Promise<unknown>) => {
+      const run = async () => callback(prisma)
+      const result = transactionQueue.then(run, run)
+      transactionQueue = result.then(
+        () => {},
+        () => {},
+      )
+      return result
+    })
+
     offers.acceptedCount.mockImplementation(async () => {
       const currentCount = dbAcceptedCount
-      await new Promise(resolve => setTimeout(resolve, 20))
+      await new Promise((resolve) => setTimeout(resolve, 20))
       return currentCount
     })
 
@@ -79,15 +94,27 @@ describe('ApplicationService', () => {
       dbAcceptedCount++
       return { id, ...data }
     })
-    const results = await Promise.all([
+
+    const results = await Promise.allSettled([
       service.decide(1, 'ACCEPTED' as never, 1, 'COORDINATOR' as never),
       service.decide(2, 'ACCEPTED' as never, 1, 'COORDINATOR' as never),
     ])
 
-    expect(results[0].status).toBe('ACCEPTED')
-    expect(results[1].status).toBe('ACCEPTED')
+    const fulfilled = results.filter((r) => r.status === 'fulfilled')
+    const rejected = results.filter((r) => r.status === 'rejected')
 
-    expect(dbAcceptedCount).toBe(2)
+    expect(fulfilled).toHaveLength(1)
+    expect(rejected).toHaveLength(1)
+
+    if (fulfilled[0]?.status === 'fulfilled') {
+      expect(fulfilled[0].value.status).toBe('ACCEPTED')
+    }
+    if (rejected[0]?.status === 'rejected') {
+      expect(rejected[0].reason).toBeInstanceOf(BadRequestException)
+      expect(rejected[0].reason.message).toBe('la oferta ya no tiene cupos')
+    }
+
+    expect(dbAcceptedCount).toBe(1)
   })
 
   it('lists applications of an offer with their student', async () => {
