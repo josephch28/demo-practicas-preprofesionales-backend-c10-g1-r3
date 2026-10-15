@@ -189,6 +189,7 @@ model HourLog {
   reviewedBy User?     @relation("HourLogReviewer", fields: [reviewedById], references: [id])
 
   @@index([updatedAt, id])
+  @@index([placementId, date])
   @@map("hour_logs")
 }
 
