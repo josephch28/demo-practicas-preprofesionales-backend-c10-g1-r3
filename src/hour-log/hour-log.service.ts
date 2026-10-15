@@ -1,8 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common'
 import { HourLogStatus, PlacementStatus, Role } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import type { CreateHourLogDto } from './dto/create-hour-log.dto'
 import { formatCalendarDay, institutionToday, toInstitutionCalendarDay, truncateToUtcDay } from './timezone'
+import { HourLogNotificationService } from './hour-log-notification.service'
 import { validateHoursValue } from './hour-log-rules'
 
 // D-02 (deuda sembrada, documentada a propósito): este servicio es un
@@ -17,7 +18,10 @@ import { validateHoursValue } from './hour-log-rules'
 // separado.
 @Injectable()
 export class HourLogService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notificationService: HourLogNotificationService = new HourLogNotificationService(),
+  ) {}
 
   /**
    * Registra una jornada de horas para el placement del estudiante.
@@ -73,13 +77,8 @@ export class HourLogService {
       },
     })
 
-    this.notifyTutor(placement.tutorId, created.id)
+    this.notificationService.notifyTutor(placement.tutorId, created.id)
     return created
-  }
-
-  // D-02: notificación dentro del mismo servicio que persiste y valida.
-  private notifyTutor(tutorId: number, hourLogId: number): void {
-    console.log(`[notificación] tutor ${tutorId}: nueva hora registrada #${hourLogId}`)
   }
 
   /**
