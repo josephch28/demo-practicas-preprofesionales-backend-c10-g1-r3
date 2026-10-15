@@ -5,13 +5,6 @@ dolió, no por severidad técnica.
 
 Si encuentras algo que no está acá, agrégalo. Casi seguro hay más.
 
-## D-02 · `HourLogService` se nos fue de las manos
-
-`src/hour-log/hour-log.service.ts`
-
-Empezó siendo el CRUD de horas y terminó haciendo validación, persistencia, notificación al
-tutor y agregación de reportes. Pasa las 300 líneas. Cada vez que hay que tocar algo ahí, hay
-que leerlo entero. Habría que partirlo por responsabilidad, pero nunca fue prioridad.
 
 ## D-03 · El módulo de evaluaciones no tiene tests
 
@@ -21,12 +14,6 @@ Cero. Lo hicimos en la última semana y no alcanzamos. Es el módulo que más ba
 del proyecto. Si vas a tocar rúbricas o scores, escribe los tests primero — nadie sabe qué se
 rompe.
 
-## D-04 · La lista de postulaciones va lenta
-
-`src/application/application.service.ts`, método `listByOffer`.
-
-Con menos de 200 postulaciones no se nota. Arriba de eso, la pantalla de la empresa tarda
-varios segundos. Sospechamos que es cómo traemos los estudiantes, pero no lo medimos.
 
 ## D-05 · `calculateAccreditationStatus` da miedo tocarla
 
@@ -36,13 +23,4 @@ ESLint la marca por complejidad. Son `if` anidados hasta seis niveles con toda l
 acreditación adentro. Funciona — hasta donde sabemos — pero solo hay dos tests, así que
 cualquier cambio es a ciegas. Si te toca modificar reglas de acreditación, escribe primero
 tests de los casos que hoy funcionan.
-
-## D-06 · La validación de horas está en tres lados
-
-`src/hour-log/dto/create-hour-log.dto.ts`, `src/hour-log/hour-log.service.ts` y el formulario
-del frontend.
-
-Y ya divergieron: el DTO acepta hasta 12 horas por registro y el servicio corta en 10. El
-formulario tiene su propia versión. Nadie recuerda cuál es la correcta.
-
 
