@@ -5,13 +5,6 @@ dolió, no por severidad técnica.
 
 Si encuentras algo que no está acá, agrégalo. Casi seguro hay más.
 
-## D-02 · `HourLogService` se nos fue de las manos
-
-`src/hour-log/hour-log.service.ts`
-
-Empezó siendo el CRUD de horas y terminó haciendo validación, persistencia, notificación al
-tutor y agregación de reportes. Pasa las 300 líneas. Cada vez que hay que tocar algo ahí, hay
-que leerlo entero. Habría que partirlo por responsabilidad, pero nunca fue prioridad.
 
 ## D-03 · El módulo de evaluaciones no tiene tests
 

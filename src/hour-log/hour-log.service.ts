@@ -8,16 +8,8 @@ import { HourLogNotificationService } from './hour-log-notification.service'
 import { HourLogReportService } from './hour-log-report.service'
 import { validateHoursValue } from './hour-log-rules'
 
-// D-02 (deuda sembrada, documentada a propósito): este servicio es un
-// "god service". `create` valida el DTO, persiste el registro y dispara
-// una notificación al tutor; `review` maneja la máquina de estados de
-// aprobación; `approvedHours`/`progressReport`/`weeklySummary`/`exportRows`
-// agregan y transforman datos para reportes. Todo vive en el mismo archivo
-// a propósito: no lo dividas en `HourLogValidationService`,
-// `HourLogNotificationService` ni `HourLogReportService`. El objetivo de
-// producto es que el equipo que reciba el template identifique el problema
-// de mantenibilidad y decida cómo (y cuándo) separarlo — no que nazca ya
-// separado.
+// E6-02 (deuda D-02 saldada): responsabilidades separadas en
+// HourLogNotificationService, HourLogExportService y HourLogReportService.
 @Injectable()
 export class HourLogService {
   constructor(
