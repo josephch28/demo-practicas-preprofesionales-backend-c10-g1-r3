@@ -168,7 +168,7 @@ export function detectInconsistencies(input: AccreditationInput): string[] {
  * Evalúa las reglas de acreditación y determina el resultado oficial del estudiante.
  */
 export function calculateAccreditationStatus(input: AccreditationInput): AccreditationResult {
-  const percentage = Math.round((input.approvedHours / input.requiredHours) * 100)
+  const percentage = Math.min(100, Math.round((input.approvedHours / input.requiredHours) * 100))
   const inconsistencies = detectInconsistencies(input)
 
   for (const rule of ACCREDITATION_RULES) {
