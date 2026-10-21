@@ -206,12 +206,12 @@ describe('calculateAccreditationStatus — porcentaje de avance', () => {
     expect(result.completionPercentage).toBe(0)
   })
 
-  it('puede devolver más de 100 si el estudiante acumuló por encima del requerido (no se tope)', () => {
-    // Observación: la función no acota el porcentaje a 100. Es parte del
-    // comportamiento actual y lo congelamos como viene.
+  it('topa el porcentaje de avance a 100 cuando las horas acumuladas exceden las requeridas', () => {
+    // E5-06: El porcentaje de avance no debe superar 100 en el acta oficial.
+
     const result = calculateAccreditationStatus({ ...base, approvedHours: 300 })
 
-    expect(result.completionPercentage).toBe(125)
+    expect(result.completionPercentage).toBe(100)
     expect(result.level).toBe('ACREDITADO')
   })
 })
