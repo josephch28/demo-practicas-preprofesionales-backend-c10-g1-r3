@@ -66,10 +66,48 @@ describe('AccreditationService.reportForPeriod', () => {
     const [result] = await service.reportForPeriod('2026-1')
 
     expect(Object.keys(result).sort()).toEqual(
-      ['placementId', 'studentName', 'level', 'reasons', 'completionPercentage'].sort(),
+      ['placementId', 'studentName', 'level', 'reasons', 'inconsistencies', 'completionPercentage'].sort(),
     )
     expect(result).not.toHaveProperty('password')
     expect(result).not.toHaveProperty('email')
     expect(result).not.toHaveProperty('createdAt')
+  })
+})
+
+describe('AccreditationService.inconsistenciesForPeriod (E5-03)', () => {
+  let service: AccreditationService
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    service = new AccreditationService(prisma as never)
+    prisma.hourLog.aggregate.mockResolvedValue({ _sum: { hours: 0 } })
+  })
+
+  it('lista solo los placements con inconsistencias, con el texto que salio del acta', async () => {
+    prisma.placement.findMany.mockResolvedValue([
+      { ...basePlacement, id: 1, status: 'SUSPENDED' },
+      { ...basePlacement, id: 2, status: 'ACTIVE' },
+    ])
+
+    const report = await service.inconsistenciesForPeriod('2026-1')
+
+    expect(report).toEqual([
+      { placementId: 1, studentName: 'Estudiante 0', inconsistencies: ['convenio vigente pese a la suspensión'] },
+    ])
+  })
+
+  it('devuelve lista vacia cuando ningun placement tiene inconsistencias', async () => {
+    prisma.placement.findMany.mockResolvedValue([basePlacement])
+
+    await expect(service.inconsistenciesForPeriod('2026-1')).resolves.toEqual([])
+  })
+
+  it('el acta (reportForPeriod) ya no trae esas frases en reasons', async () => {
+    prisma.placement.findMany.mockResolvedValue([{ ...basePlacement, status: 'SUSPENDED' }])
+
+    const [row] = await service.reportForPeriod('2026-1')
+
+    expect(row.reasons).toEqual(['placement suspendido'])
+    expect(row.inconsistencies).toEqual(['convenio vigente pese a la suspensión'])
   })
 })
