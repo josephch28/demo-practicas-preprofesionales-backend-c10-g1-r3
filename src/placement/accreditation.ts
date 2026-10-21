@@ -62,9 +62,6 @@ export function calculateAccreditationStatus(input: AccreditationInput): Accredi
                 } else {
                   level = 'NO_ACREDITADO'
                   reasons.push('evaluación del tutor por debajo del mínimo')
-                  if (input.hasFinalReport) {
-                    reasons.push('informe final entregado pese a evaluación baja')
-                  }
                 }
               } else {
                 level = 'PENDIENTE'

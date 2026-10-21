@@ -59,17 +59,14 @@ describe('calculateAccreditationStatus — ACREDITADO_CON_OBSERVACIONES', () => 
 })
 
 describe('calculateAccreditationStatus — NO_ACREDITADO por evaluaciones', () => {
-  it('rechaza cuando la evaluación del tutor es baja (< 3) y agrega razón redundante por informe final', () => {
-    // Observación: la rama interna `if (input.hasFinalReport)` siempre es
-    // true aquí (estamos dentro de un `if (input.hasFinalReport)` padre),
-    // así que la razón extra se agrega siempre. Lo congelamos tal cual.
+  it('rechaza cuando la evaluación del tutor es baja (< 3)', () => {
+    // E5-02 / G1-55: Se eliminó el chequeo redundante `if (input.hasFinalReport)` y la razón
+    // "informe final entregado pese a evaluación baja", ya que input.hasFinalReport siempre
+    // era true en esta rama y la información ya se deduce del resultado.
     const result = calculateAccreditationStatus({ ...base, tutorEvaluationScore: 2.9 })
 
     expect(result.level).toBe('NO_ACREDITADO')
-    expect(result.reasons).toEqual([
-      'evaluación del tutor por debajo del mínimo',
-      'informe final entregado pese a evaluación baja',
-    ])
+    expect(result.reasons).toEqual(['evaluación del tutor por debajo del mínimo'])
   })
 })
 
