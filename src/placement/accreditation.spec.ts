@@ -38,6 +38,7 @@ describe('calculateAccreditationStatus — camino feliz: ACREDITADO', () => {
 
     expect(result.level).toBe('ACREDITADO')
     expect(result.reasons).toHaveLength(0)
+    expect(result.inconsistencies).toHaveLength(0)
     expect(result.completionPercentage).toBe(100)
   })
 })
@@ -106,23 +107,21 @@ describe('calculateAccreditationStatus — NO_ACREDITADO por seguro', () => {
 })
 
 describe('calculateAccreditationStatus — NO_ACREDITADO por convenio', () => {
-  it('rechaza cuando falta el convenio y agrega razón contradictoria si hay seguro', () => {
-    // Observación: razón potencialmente útil para auditoría — "cómo entró
-    // el seguro sin convenio" — pero el PR solo congela el comportamiento.
+  // E5-03 (opción b): la contradicción ya no va al acta, se reporta aparte.
+  it('rechaza cuando falta el convenio; el seguro vigente se reporta como inconsistencia, no como razón', () => {
     const result = calculateAccreditationStatus({ ...base, hasAgreement: false })
 
     expect(result.level).toBe('NO_ACREDITADO')
-    expect(result.reasons).toEqual([
-      'falta convenio',
-      'seguro vigente pese a la falta de convenio',
-    ])
+    expect(result.reasons).toEqual(['falta convenio'])
+    expect(result.inconsistencies).toEqual(['seguro vigente pese a la falta de convenio'])
   })
 
-  it('rechaza cuando falta el convenio y tampoco hay seguro (solo una razón)', () => {
+  it('rechaza cuando falta el convenio y tampoco hay seguro (sin inconsistencias)', () => {
     const result = calculateAccreditationStatus({ ...base, hasAgreement: false, hasInsurance: false })
 
     expect(result.level).toBe('NO_ACREDITADO')
     expect(result.reasons).toEqual(['falta convenio'])
+    expect(result.inconsistencies).toEqual([])
   })
 })
 
@@ -170,23 +169,23 @@ describe('calculateAccreditationStatus — NO_ACREDITADO por placement ABANDONED
 })
 
 describe('calculateAccreditationStatus — NO_ACREDITADO por placement SUSPENDED', () => {
-  it('rechaza un placement suspendido y agrega razón contradictoria si hay convenio', () => {
+  // E5-03 (opción b): la contradicción ya no va al acta, se reporta aparte.
+  it('rechaza un placement suspendido; el convenio vigente se reporta como inconsistencia, no como razón', () => {
     const result = calculateAccreditationStatus({ ...base, placementStatus: 'SUSPENDED' })
 
     expect(result.level).toBe('NO_ACREDITADO')
-    expect(result.reasons).toEqual([
-      'placement suspendido',
-      'convenio vigente pese a la suspensión',
-    ])
+    expect(result.reasons).toEqual(['placement suspendido'])
+    expect(result.inconsistencies).toEqual(['convenio vigente pese a la suspensión'])
   })
 
-  it('rechaza un placement suspendido sin convenio (solo una razón)', () => {
+  it('rechaza un placement suspendido sin convenio (sin inconsistencias)', () => {
     const result = calculateAccreditationStatus({
       ...base, placementStatus: 'SUSPENDED', hasAgreement: false,
     })
 
     expect(result.level).toBe('NO_ACREDITADO')
     expect(result.reasons).toEqual(['placement suspendido'])
+    expect(result.inconsistencies).toEqual([])
   })
 })
 

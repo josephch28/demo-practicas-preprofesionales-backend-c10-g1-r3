@@ -25,6 +25,13 @@ export class PlacementController {
     return this.accreditationService.reportForPeriod(query.period)
   }
 
+  // E5-03: informe de inconsistencias que se sacaron del acta. Solo coordinación.
+  @Get('accreditation/inconsistencies')
+  @Roles(Role.COORDINATOR)
+  inconsistencies(@Query() query: AccreditationQueryDto) {
+    return this.accreditationService.inconsistenciesForPeriod(query.period)
+  }
+
   @Post()
   @Roles(Role.COORDINATOR)
   create(@Body() dto: CreatePlacementDto) {

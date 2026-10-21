@@ -22,14 +22,24 @@ export interface AccreditationResult {
   placementId: number
   studentName: string
   level: AccreditationLevel
+  // Lo que se imprime en el acta: solo razones que explican el nivel.
   reasons: string[]
+  // Contradicciones entre documentos y estado del placement. NO van al acta;
+  // se consultan en el informe de inconsistencias (ver AccreditationService).
+  inconsistencies: string[]
   completionPercentage: number
 }
 
 // D-05: complejidad ciclomática 17, anidamiento de 6 niveles.
 // ESLint la marca con `complexity` (umbral 10). No refactorizar.
+//
+// E5-03 · Decisión de la coordinación (opción b): las contradicciones
+// "convenio vigente pese a la suspensión" y "seguro vigente pese a la falta de
+// convenio" se omiten del acta y se reportan aparte en `inconsistencies`. Así
+// el documento oficial no se contradice y la señal de auditoría no se pierde.
 export function calculateAccreditationStatus(input: AccreditationInput): AccreditationResult {
   const reasons: string[] = []
+  const inconsistencies: string[] = []
   let level: AccreditationLevel = 'PENDIENTE'
   const percentage = Math.round((input.approvedHours / input.requiredHours) * 100)
 
@@ -44,7 +54,7 @@ export function calculateAccreditationStatus(input: AccreditationInput): Accredi
       level = 'NO_ACREDITADO'
       reasons.push('placement suspendido')
       if (input.hasAgreement) {
-        reasons.push('convenio vigente pese a la suspensión')
+        inconsistencies.push('convenio vigente pese a la suspensión')
       }
     } else {
       if (input.approvedHours >= input.requiredHours) {
@@ -82,7 +92,7 @@ export function calculateAccreditationStatus(input: AccreditationInput): Accredi
           level = 'NO_ACREDITADO'
           reasons.push('falta convenio')
           if (input.hasInsurance) {
-            reasons.push('seguro vigente pese a la falta de convenio')
+            inconsistencies.push('seguro vigente pese a la falta de convenio')
           }
         }
       } else {
@@ -95,5 +105,12 @@ export function calculateAccreditationStatus(input: AccreditationInput): Accredi
     }
   }
 
-  return { placementId: input.placementId, studentName: input.studentName, level, reasons, completionPercentage: percentage }
+  return {
+    placementId: input.placementId,
+    studentName: input.studentName,
+    level,
+    reasons,
+    inconsistencies,
+    completionPercentage: percentage,
+  }
 }

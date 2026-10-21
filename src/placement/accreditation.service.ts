@@ -56,4 +56,17 @@ export class AccreditationService {
     }
     return results
   }
+
+  // E5-03: informe aparte de inconsistencias. Las contradicciones entre
+  // documentos y estado del placement no van al acta (ver accreditation.ts);
+  // aquí quedan disponibles para la coordinación. Solo lista placements que
+  // tienen al menos una.
+  async inconsistenciesForPeriod(
+    period: string,
+  ): Promise<Pick<AccreditationResult, 'placementId' | 'studentName' | 'inconsistencies'>[]> {
+    const results = await this.reportForPeriod(period)
+    return results
+      .filter((r) => r.inconsistencies.length > 0)
+      .map(({ placementId, studentName, inconsistencies }) => ({ placementId, studentName, inconsistencies }))
+  }
 }
