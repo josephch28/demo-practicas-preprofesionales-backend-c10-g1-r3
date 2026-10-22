@@ -38,6 +38,12 @@ export class GroqProviderError extends Error {
   }
 }
 
+/** Motivo legible de un fallo de `fetch`, sin datos de la petición ni de la respuesta. */
+export function describeFetchFailure(error: unknown): string {
+  const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
+  return timedOut ? 'tiempo de espera agotado' : 'error de red'
+}
+
 export function buildSystemPrompt(context: { recordedAt: Date; timeZone: string }): string {
   const day = formatCalendarDay(toInstitutionCalendarDay(context.recordedAt, context.timeZone))
   const spoken = new Intl.DateTimeFormat('es-EC', {
@@ -153,8 +159,7 @@ export class GroqVoiceDraftProvider implements VoiceDraftProvider {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       })
     } catch (error) {
-      const timedOut = error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')
-      const reason = timedOut ? 'tiempo de espera agotado' : 'error de red'
+      const reason = describeFetchFailure(error)
       this.logger.warn(`Groq, ${step}: ${reason}`)
       throw new GroqProviderError(`${reason} en ${step}`)
     }
