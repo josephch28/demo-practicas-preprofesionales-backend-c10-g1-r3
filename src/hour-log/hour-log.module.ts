@@ -5,7 +5,8 @@ import { HourLogNotificationService } from './hour-log-notification.service'
 import { HourLogReportService } from './hour-log-report.service'
 import { HourLogService } from './hour-log.service'
 import { VoiceDraftController } from './voice-draft.controller'
-import { UnconfiguredVoiceDraftProvider, VOICE_DRAFT_PROVIDER } from './voice-draft.provider'
+import { createVoiceDraftProvider } from './providers/voice-draft-provider.factory'
+import { VOICE_DRAFT_PROVIDER } from './voice-draft.provider'
 import { VoiceDraftService } from './voice-draft.service'
 
 @Module({
@@ -16,8 +17,8 @@ import { VoiceDraftService } from './voice-draft.service'
     HourLogExportService,
     HourLogReportService,
     VoiceDraftService,
-    // VOZ-08 reemplaza este proveedor por el real cuando hay API key.
-    { provide: VOICE_DRAFT_PROVIDER, useClass: UnconfiguredVoiceDraftProvider },
+    // Groq si hay GROQ_API_KEY; si no, un proveedor que responde 503.
+    { provide: VOICE_DRAFT_PROVIDER, useFactory: () => createVoiceDraftProvider() },
   ],
   exports: [
     HourLogService,
