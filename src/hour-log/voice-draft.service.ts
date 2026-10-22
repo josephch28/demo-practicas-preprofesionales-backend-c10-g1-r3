@@ -2,12 +2,12 @@ import {
   BadGatewayException,
   BadRequestException,
   HttpException,
-  HttpStatus,
   Inject,
   Injectable,
   Logger,
   PayloadTooLargeException,
 } from '@nestjs/common'
+import { RateLimiter } from '../common/rate-limiter'
 import { institutionTimeZone } from './timezone'
 import { normalizeVoiceDraft, type VoiceDraftResult } from './voice-draft'
 import { VOICE_DRAFT_PROVIDER, type VoiceDraftExtraction, type VoiceDraftProvider } from './voice-draft.provider'
@@ -32,7 +32,7 @@ type ValidatedAudio = UploadedAudio & { mimeType: string }
 @Injectable()
 export class VoiceDraftService {
   private readonly logger = new Logger(VoiceDraftService.name)
-  private readonly requestTimes = new Map<number, number[]>()
+  private readonly rateLimiter = new RateLimiter(MAX_REQUESTS_PER_WINDOW, RATE_WINDOW_MS, 'demasiadas notas de voz seguidas; espera un minuto')
 
   constructor(@Inject(VOICE_DRAFT_PROVIDER) private readonly provider: VoiceDraftProvider) {}
 
@@ -41,7 +41,7 @@ export class VoiceDraftService {
     file: UploadedAudio | undefined,
     recordedAtRaw: string,
   ): Promise<{ transcript: string } & VoiceDraftResult> {
-    this.assertWithinRateLimit(userId)
+    this.rateLimiter.assertWithinLimit(userId)
     const audio = this.validateAudio(file)
     const recordedAt = this.parseRecordedAt(recordedAtRaw)
 
@@ -53,17 +53,6 @@ export class VoiceDraftService {
     this.logger.log(`voice-draft usuario=${userId} bytes=${audio.size} ms=${Date.now() - startedAt}`)
 
     return { transcript, ...normalized }
-  }
-
-  private assertWithinRateLimit(userId: number): void {
-    const now = Date.now()
-    const recent = (this.requestTimes.get(userId) ?? []).filter((time) => now - time < RATE_WINDOW_MS)
-    if (recent.length >= MAX_REQUESTS_PER_WINDOW) {
-      this.requestTimes.set(userId, recent)
-      throw new HttpException('demasiadas notas de voz seguidas; espera un minuto', HttpStatus.TOO_MANY_REQUESTS)
-    }
-    recent.push(now)
-    this.requestTimes.set(userId, recent)
   }
 
   private validateAudio(file: UploadedAudio | undefined): ValidatedAudio {
