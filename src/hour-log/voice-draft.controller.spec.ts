@@ -1,4 +1,4 @@
-import { GUARDS_METADATA, INTERCEPTORS_METADATA, PATH_METADATA } from '@nestjs/common/constants'
+import { GUARDS_METADATA, HTTP_CODE_METADATA, INTERCEPTORS_METADATA, PATH_METADATA } from '@nestjs/common/constants'
 import { Reflector } from '@nestjs/core'
 import { Role } from '@prisma/client'
 import { describe, expect, it, vi } from 'vitest'
@@ -37,6 +37,12 @@ describe('VoiceDraftController (VOZ-02)', () => {
   it('se expone en POST /hour-logs/voice-draft', () => {
     expect(Reflect.getMetadata(PATH_METADATA, VoiceDraftController)).toBe('hour-logs')
     expect(Reflect.getMetadata(PATH_METADATA, VoiceDraftController.prototype.create)).toBe('voice-draft')
+  })
+
+  // Devuelve un borrador y no crea ningún recurso: el contrato documenta 200,
+  // no el 201 que Nest usa por defecto en un POST.
+  it('responde 200 y no 201', () => {
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, VoiceDraftController.prototype.create)).toBe(200)
   })
 
   it('recibe el archivo por multipart con un interceptor', () => {
