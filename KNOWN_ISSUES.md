@@ -15,12 +15,3 @@ del proyecto. Si vas a tocar rúbricas o scores, escribe los tests primero — n
 rompe.
 
 
-## D-05 · `calculateAccreditationStatus` da miedo tocarla
-
-`src/placement/accreditation.ts`
-
-ESLint la marca por complejidad. Son `if` anidados hasta seis niveles con toda la lógica de
-acreditación adentro. Funciona — hasta donde sabemos — pero solo hay dos tests, así que
-cualquier cambio es a ciegas. Si te toca modificar reglas de acreditación, escribe primero
-tests de los casos que hoy funcionan.
-
